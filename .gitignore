@@ -1,0 +1,27 @@
+node_modules
+.env
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# IDE files
+.idea
+
+.npmrc
+
+# abis
+abis
+
+# Docgen
+docgen
+
+.vscode/settings.json
