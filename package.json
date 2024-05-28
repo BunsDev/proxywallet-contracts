@@ -46,5 +46,8 @@
     "solidity-coverage": "^0.8.12",
     "tsconfig-paths": "^4.2.0",
     "zod": "^3.22.4"
+  },
+  "dependencies": {
+    "@account-abstraction/contracts": "^0.7.0"
   }
 }
