@@ -38,6 +38,7 @@ contract SmartWalletV1 is
 
     mapping(address => bool) public allowlist;
     mapping(address => mapping(bytes4 => bool)) public blacklistedFunctions;
+    mapping(bytes32 => uint256) public extenralIdsToExecutesIds;
 
     address public allowListOperator;
     uint256 public autoExecuteCounter;
@@ -156,6 +157,7 @@ contract SmartWalletV1 is
         );
 
         require(executeAfter > block.timestamp, "SW: invalid execute time");
+        require(extenralIdsToExecutesIds[id] == 0, "SW: id already exist");
 
         _fundClUpkeep(LINK_FEE_PER_AUTOEXECUTE);
 
@@ -169,7 +171,17 @@ contract SmartWalletV1 is
             executeAfter: executeAfter
         });
 
-        autoExecutesMap.set(autoExecuteCounter++, data);
+        uint256 internalId = ++autoExecuteCounter;
+        extenralIdsToExecutesIds[id] = internalId;
+        autoExecutesMap.set(internalId, data);
+    }
+
+    function removeAutoExecute(bytes32 id) external {
+        uint256 internalId = extenralIdsToExecutesIds[id];
+        require(internalId > 0, "SW: not exist");
+        AutoExecute memory data = autoExecutesMap.get(internalId);
+        require(data.creator == msg.sender, "SW: invalid sender");
+        autoExecutesMap.remove(internalId);
     }
 
     function addToAllowlistWithPermit(
