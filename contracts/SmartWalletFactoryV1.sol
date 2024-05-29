@@ -45,8 +45,9 @@ contract SmartWalletFactoryV1 is ISmartWalletFactory {
     function create2Wallet(
         address owner,
         address allowlistOperator,
-        bytes32 salt
+        bytes32 baseSalt
     ) public returns (address) {
+        bytes32 salt = getSalt(msg.sender, baseSalt);
         SmartWalletV1 wallet = SmartWalletV1(
             payable(Clones.cloneDeterministic(implementation, salt))
         );
@@ -69,8 +70,11 @@ contract SmartWalletFactoryV1 is ISmartWalletFactory {
     }
 
     function predictCreate2Wallet(
-        bytes32 salt
+        address sender,
+        bytes32 baseSalt
     ) external view returns (address) {
+        bytes32 salt = getSalt(sender, baseSalt);
+
         return
             Clones.predictDeterministicAddress(
                 implementation,
@@ -86,5 +90,12 @@ contract SmartWalletFactoryV1 is ISmartWalletFactory {
             address(this)
         );
         return expectedAddress == wallet;
+    }
+
+    function getSalt(
+        address sender,
+        bytes32 baseSalt
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(sender, baseSalt));
     }
 }

@@ -107,7 +107,7 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
         _resetSmartWallet(listInfo, msg.sender);
     }
 
-    function _rent(bytes32 id, address smartWallet) private {
+    function _rent(bytes32 id, address smartWallet) internal {
         require(
             ISmartWalletFactory(smartWalletFactory).validateWallet(smartWallet),
             "NR: not a smart wallet"

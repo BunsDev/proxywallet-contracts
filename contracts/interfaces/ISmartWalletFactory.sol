@@ -24,7 +24,10 @@ interface ISmartWalletFactory {
         bytes32 salt
     ) external returns (address);
 
-    function predictCreate2Wallet(bytes32 salt) external view returns (address);
+    function predictCreate2Wallet(
+        address sender,
+        bytes32 baseSalt
+    ) external view returns (address);
 
     function validateWallet(address wallet) external view returns (bool);
 }
