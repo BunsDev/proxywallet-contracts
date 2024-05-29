@@ -1,20 +1,57 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.23;
 
+import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 // import "@chainlink/contracts/src/v0.8/.sol";
 import "./libraries/EnumerableMap.sol";
+import "./libraries/UniswapV3Actions.sol";
+import "./interfaces/IWeth.sol";
 
 import "hardhat/console.sol";
+
+struct RegistrationParams {
+    string name;
+    bytes encryptedEmail;
+    address upkeepContract;
+    uint32 gasLimit;
+    address adminAddress;
+    uint8 triggerType;
+    bytes checkData;
+    bytes triggerConfig;
+    bytes offchainConfig;
+    uint96 amount;
+}
+
+interface AutomationRegistrarInterface {
+    function registerUpkeep(
+        RegistrationParams calldata requestParams
+    ) external returns (uint256);
+}
+
+interface AutomationRegistryInterface {
+    function addFunds(uint256 id, uint96 amount) external;
+}
 
 contract SmartWalletV1 is OwnableUpgradeable {
     using EnumerableMap for EnumerableMap.UintToAutoExecuteMap;
 
+    uint256 constant LINK_FEE_PER_AUTOEXECUTE = 0.1e18;
+    uint32 constant AUTOEXECUTE_GAS_LIMIT = 5_000_000;
+
     mapping(address => bool) public allowlist;
     mapping(address => mapping(bytes4 => bool)) public blacklistedFunctions;
     EnumerableMap.UintToAutoExecuteMap autoExecutesMap;
+    address public linkToken;
+    address public clRegistrar;
+    address public clRegistry;
+    address public uniswapV3Router;
+    address public wethToken;
     uint256 public autoExecuteCounter;
+    uint256 public upkeepId;
+    bytes public wethToLinkSwapPath;
 
     modifier onlyAllowlist() {
         require(allowlist[msg.sender], "SW: not a blacklister");
@@ -27,9 +64,23 @@ contract SmartWalletV1 is OwnableUpgradeable {
 
     function initialize(
         address _owner,
+        address _linkToken,
+        address _clRegistrar,
+        address _clRegistry,
+        address _uniswapV3Router,
+        address _wethToken,
+        bytes calldata _wethToLinkSwapPath,
         address[] calldata _initialAllowList
     ) external initializer {
         __Ownable_init(_owner);
+
+        uniswapV3Router = _uniswapV3Router;
+        wethToken = _wethToken;
+        wethToLinkSwapPath = _wethToLinkSwapPath;
+
+        linkToken = _linkToken;
+        clRegistrar = _clRegistrar;
+        clRegistry = _clRegistry;
 
         for (uint i; i < _initialAllowList.length; i++) {
             allowlist[_initialAllowList[i]] = true;
@@ -70,6 +121,8 @@ contract SmartWalletV1 is OwnableUpgradeable {
 
         require(executeAfter > block.timestamp, "SW: invalid execute time");
 
+        _fundClUpkeep(LINK_FEE_PER_AUTOEXECUTE);
+
         AutoExecute memory data = AutoExecute({
             id: ++autoExecuteCounter,
             creator: msg.sender,
@@ -81,6 +134,50 @@ contract SmartWalletV1 is OwnableUpgradeable {
         });
 
         autoExecutesMap.set(data.id, data);
+    }
+
+    function _fundClUpkeep(uint256 amountLink) private {
+        uint256 linkBalance = IERC20(linkToken).balanceOf(address(this));
+
+        if (linkBalance < amountLink) {
+            IWETH(wethToken).deposit{value: address(this).balance}();
+
+            uint256 amountIn = UniswapV3Actions.swapExactOutput(
+                uniswapV3Router,
+                wethToLinkSwapPath,
+                address(this),
+                amountLink - linkBalance,
+                0
+            );
+
+            IWETH(wethToken).withdraw(amountIn);
+        }
+
+        IERC20(linkToken).approve(address(clRegistrar), amountLink);
+
+        if (upkeepId == 0) {
+            RegistrationParams memory params = RegistrationParams({
+                name: "",
+                encryptedEmail: "",
+                upkeepContract: address(this),
+                gasLimit: AUTOEXECUTE_GAS_LIMIT,
+                adminAddress: address(this),
+                triggerType: 0,
+                checkData: "",
+                triggerConfig: "",
+                offchainConfig: "",
+                amount: uint96(LINK_FEE_PER_AUTOEXECUTE)
+            });
+
+            upkeepId = AutomationRegistrarInterface(clRegistrar).registerUpkeep(
+                    params
+                );
+        } else {
+            AutomationRegistryInterface(clRegistry).addFunds(
+                upkeepId,
+                uint96(amountLink)
+            );
+        }
     }
 
     function addToAllowlist(address addr) public onlyOwner {

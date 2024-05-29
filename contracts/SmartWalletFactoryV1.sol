@@ -5,28 +5,46 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./SmartWalletV1.sol";
 
 contract SmartWaletFactoryV1 {
+    struct CreateParams {
+        address linkToken;
+        address clRegistrar;
+        address clRegistry;
+        address uniswapV3Router;
+        address wethToken;
+        bytes wethToLinkSwapPath;
+        address[] initAllowlist;
+    }
+
     address public immutable implementation;
+    uint256 public counter;
 
     constructor(address _implementation) {
         implementation = _implementation;
     }
 
     function createWallet(
-        address[] calldata initAllowlist
+        CreateParams calldata params
     ) external returns (address) {
-        SmartWalletV1 wallet = SmartWalletV1(Clones.clone(implementation));
-        wallet.initialize(msg.sender, initAllowlist);
-        return address(wallet);
+        return create2Wallet(params, keccak256(abi.encodePacked(counter++)));
     }
 
     function create2Wallet(
-        address[] calldata initAllowlist,
+        CreateParams calldata params,
         bytes32 salt
-    ) external returns (address) {
+    ) public returns (address) {
         SmartWalletV1 wallet = SmartWalletV1(
             Clones.cloneDeterministic(implementation, salt)
         );
-        wallet.initialize(msg.sender, initAllowlist);
+        wallet.initialize(
+            msg.sender,
+            params.linkToken,
+            params.clRegistrar,
+            params.clRegistry,
+            params.uniswapV3Router,
+            params.wethToken,
+            params.wethToLinkSwapPath,
+            params.initAllowlist
+        );
         return address(wallet);
     }
 
