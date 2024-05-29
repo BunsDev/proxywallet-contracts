@@ -4,6 +4,9 @@ pragma solidity ^0.8.23;
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 // import "@chainlink/contracts/src/v0.8/.sol";
 import "./libraries/EnumerableMap.sol";
@@ -15,9 +18,18 @@ import "./interfaces/IAutomationRegistryInterface.sol";
 import "./structs/CreateWalletParams.sol";
 import "hardhat/console.sol";
 
-contract SmartWalletV1 is OwnableUpgradeable {
+contract SmartWalletV1 is
+    OwnableUpgradeable,
+    EIP712Upgradeable,
+    NoncesUpgradeable
+{
     using EnumerableMap for EnumerableMap.UintToAutoExecuteMap;
     using Address for address;
+
+    bytes32 private constant ADD_TO_ALLOWLIST_PERMIT_TYPEHASH =
+        keccak256(
+            "AddToAllowlistPermit(address newAllowlist,uint256 nonce,uint256 deadline)"
+        );
 
     uint256 constant LINK_FEE_PER_AUTOEXECUTE = 0.1 * 10 ** 18;
     uint32 constant AUTOEXECUTE_GAS_LIMIT = 5_000_000;
@@ -58,6 +70,7 @@ contract SmartWalletV1 is OwnableUpgradeable {
         CreateWalletParams calldata createParams
     ) external initializer {
         __Ownable_init(createParams.owner);
+        __EIP712_init("SmartWalletV1", "1");
 
         allowListOperator = createParams.allowlistOperator;
         uniswapV3Router = createParams.uniswapV3Router;
@@ -124,43 +137,30 @@ contract SmartWalletV1 is OwnableUpgradeable {
         autoExecutesMap.set(autoExecuteCounter++, data);
     }
 
-    function _fundClUpkeep(uint256 amountLink) private {
-        uint256 linkBalance = IERC20(linkToken).balanceOf(address(this));
+    function addToAllowlistWithPermit(
+        address addr,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public {
+        require(deadline >= block.timestamp, "SW: expired signature");
 
-        if (linkBalance < amountLink) {
-            UniswapV3Actions.swapExactOutput(
-                uniswapV3Router,
-                wethToLinkSwapPath,
-                address(this),
-                amountLink,
-                address(this).balance // FIXME
-            );
-        }
+        bytes32 structHash = keccak256(
+            abi.encode(
+                ADD_TO_ALLOWLIST_PERMIT_TYPEHASH,
+                addr,
+                _useNonce(allowListOperator),
+                deadline
+            )
+        );
 
-        IERC20(linkToken).approve(address(clRegistrar), amountLink);
+        bytes32 hash = _hashTypedDataV4(structHash);
 
-        if (upkeepId == 0) {
-            RegistrationParams memory params = RegistrationParams({
-                name: "",
-                encryptedEmail: "",
-                upkeepContract: address(this),
-                gasLimit: AUTOEXECUTE_GAS_LIMIT,
-                adminAddress: address(this),
-                triggerType: 0,
-                checkData: "",
-                triggerConfig: "",
-                offchainConfig: "",
-                amount: uint96(LINK_FEE_PER_AUTOEXECUTE)
-            });
+        address signer = ECDSA.recover(hash, v, r, s);
+        require(signer == allowListOperator, "SW: invalid signer");
 
-            upkeepId = IAutomationRegistrarInterface(clRegistrar)
-                .registerUpkeep(params);
-        } else {
-            IAutomationRegistryInterface(clRegistry).addFunds(
-                upkeepId,
-                uint96(amountLink)
-            );
-        }
+        allowlist[addr] = true;
     }
 
     function addToAllowlist(address addr) public onlyAllowlistOperator {
@@ -229,6 +229,45 @@ contract SmartWalletV1 is OwnableUpgradeable {
             return to.functionCallWithValue(data, callValue);
         } else {
             Address.sendValue(payable(to), callValue);
+        }
+    }
+
+    function _fundClUpkeep(uint256 amountLink) private {
+        uint256 linkBalance = IERC20(linkToken).balanceOf(address(this));
+
+        if (linkBalance < amountLink) {
+            UniswapV3Actions.swapExactOutput(
+                uniswapV3Router,
+                wethToLinkSwapPath,
+                address(this),
+                amountLink,
+                address(this).balance // FIXME
+            );
+        }
+
+        IERC20(linkToken).approve(address(clRegistrar), amountLink);
+
+        if (upkeepId == 0) {
+            RegistrationParams memory params = RegistrationParams({
+                name: "",
+                encryptedEmail: "",
+                upkeepContract: address(this),
+                gasLimit: AUTOEXECUTE_GAS_LIMIT,
+                adminAddress: address(this),
+                triggerType: 0,
+                checkData: "",
+                triggerConfig: "",
+                offchainConfig: "",
+                amount: uint96(LINK_FEE_PER_AUTOEXECUTE)
+            });
+
+            upkeepId = IAutomationRegistrarInterface(clRegistrar)
+                .registerUpkeep(params);
+        } else {
+            IAutomationRegistryInterface(clRegistry).addFunds(
+                upkeepId,
+                uint96(amountLink)
+            );
         }
     }
 
