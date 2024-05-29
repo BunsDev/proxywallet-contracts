@@ -13,12 +13,13 @@ import "./interfaces/IAutoExecuteCallback.sol";
 import "./interfaces/IAutomationRegistrarInterface.sol";
 import "./interfaces/IAutomationRegistryInterface.sol";
 import "./structs/CreateWalletParams.sol";
+import "hardhat/console.sol";
 
 contract SmartWalletV1 is OwnableUpgradeable {
     using EnumerableMap for EnumerableMap.UintToAutoExecuteMap;
     using Address for address;
 
-    uint256 constant LINK_FEE_PER_AUTOEXECUTE = 0.1e18;
+    uint256 constant LINK_FEE_PER_AUTOEXECUTE = 0.1 * 10 ** 18;
     uint32 constant AUTOEXECUTE_GAS_LIMIT = 5_000_000;
 
     mapping(address => bool) public allowlist;
@@ -38,7 +39,7 @@ contract SmartWalletV1 is OwnableUpgradeable {
     uint256 public autoExecuteCounter;
 
     modifier onlyAllowlist() {
-        require(allowlist[msg.sender], "SW: not a blacklister");
+        require(allowlist[msg.sender], "SW: not in allowlist");
         _;
     }
 
@@ -50,6 +51,8 @@ contract SmartWalletV1 is OwnableUpgradeable {
     constructor() {
         _disableInitializers();
     }
+
+    receive() external payable {}
 
     function initialize(
         CreateWalletParams calldata createParams
@@ -76,6 +79,7 @@ contract SmartWalletV1 is OwnableUpgradeable {
     ) external onlyAllowlist {
         require(tos.length == funcSelectors.length, "SW: mismatch arrays");
         for (uint i; i < tos.length; i++) {
+            require(funcSelectors[i] != bytes4(0), "SW: invalid selector");
             blacklistedFunctions[tos[i]][funcSelectors[i]] = true;
         }
     }
@@ -117,24 +121,20 @@ contract SmartWalletV1 is OwnableUpgradeable {
             executeAfter: executeAfter
         });
 
-        autoExecutesMap.set(++autoExecuteCounter, data);
+        autoExecutesMap.set(autoExecuteCounter++, data);
     }
 
     function _fundClUpkeep(uint256 amountLink) private {
         uint256 linkBalance = IERC20(linkToken).balanceOf(address(this));
 
         if (linkBalance < amountLink) {
-            IWETH(wethToken).deposit{value: address(this).balance}();
-
-            uint256 amountIn = UniswapV3Actions.swapExactOutput(
+            UniswapV3Actions.swapExactOutput(
                 uniswapV3Router,
                 wethToLinkSwapPath,
                 address(this),
-                amountLink - linkBalance,
-                0
+                amountLink,
+                address(this).balance // FIXME
             );
-
-            IWETH(wethToken).withdraw(amountIn);
         }
 
         IERC20(linkToken).approve(address(clRegistrar), amountLink);
@@ -205,18 +205,15 @@ contract SmartWalletV1 is OwnableUpgradeable {
             uint256 key = keys[i];
             AutoExecute memory data = autoExecutesMap.get(key);
 
-            if (data.executeAfter >= block.timestamp)
-                return (true, abi.encode(data.id));
+            if (block.timestamp > data.executeAfter)
+                return (true, abi.encode(key));
         }
     }
 
     function performUpkeep(bytes calldata performData) external {
         uint256 id = abi.decode(performData, (uint256));
         AutoExecute memory data = autoExecutesMap.get(id);
-        require(
-            data.executeAfter >= block.timestamp,
-            "SW: to early to execute"
-        );
+        require(block.timestamp > data.executeAfter, "SW: to early to execute");
 
         _executeUpkeep(data);
         autoExecutesMap.remove(id);
@@ -228,19 +225,25 @@ contract SmartWalletV1 is OwnableUpgradeable {
         bytes calldata data
     ) private returns (bytes memory) {
         _requireNotBlaclisted(to, data);
-        return to.functionCallWithValue(data, callValue);
+        if (data.length > 0) {
+            return to.functionCallWithValue(data, callValue);
+        } else {
+            Address.sendValue(payable(to), callValue);
+        }
     }
 
     function _executeUpkeep(AutoExecute memory upkeepData) private {
-        upkeepData.executeTo.functionCallWithValue(
-            upkeepData.executeData,
-            upkeepData.executeValue
-        );
-
-        upkeepData.executeTo.functionCallWithValue(
-            upkeepData.executeData,
-            upkeepData.executeValue
-        );
+        if (upkeepData.executeData.length > 0) {
+            upkeepData.executeTo.functionCallWithValue(
+                upkeepData.executeData,
+                upkeepData.executeValue
+            );
+        } else {
+            Address.sendValue(
+                payable(upkeepData.executeTo),
+                upkeepData.executeValue
+            );
+        }
 
         if (upkeepData.callback != address(0)) {
             upkeepData.callback.functionCall(
@@ -257,6 +260,10 @@ contract SmartWalletV1 is OwnableUpgradeable {
         address to,
         bytes calldata data
     ) private view {
+        if (data.length == 0) {
+            return;
+        }
+
         bytes4 selector = bytes4(data[:4]);
         require(!blacklistedFunctions[to][selector], "CW: func is blaclisted");
     }

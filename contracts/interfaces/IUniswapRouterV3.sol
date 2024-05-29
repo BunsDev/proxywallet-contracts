@@ -19,6 +19,8 @@ interface IUniswapRouterV3 {
         uint256 amountInMaximum;
     }
 
+    function refundETH() external payable;
+
     function exactInput(
         ExactInputParams calldata params
     ) external payable returns (uint256 amountOut);

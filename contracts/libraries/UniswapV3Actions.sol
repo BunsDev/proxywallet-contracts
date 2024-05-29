@@ -17,7 +17,7 @@ library UniswapV3Actions {
                 amountIn: _amount,
                 amountOutMinimum: 0
             });
-        return IUniswapRouterV3(_router).exactInput(swapParams);
+        return IUniswapRouterV3(_router).exactInput{value: _amount}(swapParams);
     }
 
     function swapExactOutput(
@@ -35,6 +35,9 @@ library UniswapV3Actions {
                 amountOut: _amountOut,
                 amountInMaximum: _amountInMaximum
             });
-        return IUniswapRouterV3(_router).exactOutput(swapParams);
+        amountIn = IUniswapRouterV3(_router).exactOutput{
+            value: _amountInMaximum
+        }(swapParams);
+        IUniswapRouterV3(_router).refundETH();
     }
 }

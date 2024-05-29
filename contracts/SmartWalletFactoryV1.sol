@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./SmartWalletV1.sol";
 import "./structs/CreateWalletParams.sol";
 
-contract SmartWaletFactoryV1 {
+contract SmartWalletFactoryV1 {
     address public immutable implementation;
     uint256 public counter;
 
@@ -24,7 +24,7 @@ contract SmartWaletFactoryV1 {
         bytes32 salt
     ) public returns (address) {
         SmartWalletV1 wallet = SmartWalletV1(
-            Clones.cloneDeterministic(implementation, salt)
+            payable(Clones.cloneDeterministic(implementation, salt))
         );
         wallet.initialize(params);
         return address(wallet);
