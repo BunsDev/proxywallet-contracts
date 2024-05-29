@@ -3,18 +3,9 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./SmartWalletV1.sol";
+import "./structs/CreateWalletParams.sol";
 
 contract SmartWaletFactoryV1 {
-    struct CreateParams {
-        address linkToken;
-        address clRegistrar;
-        address clRegistry;
-        address uniswapV3Router;
-        address wethToken;
-        bytes wethToLinkSwapPath;
-        address[] initAllowlist;
-    }
-
     address public immutable implementation;
     uint256 public counter;
 
@@ -23,28 +14,19 @@ contract SmartWaletFactoryV1 {
     }
 
     function createWallet(
-        CreateParams calldata params
+        CreateWalletParams calldata params
     ) external returns (address) {
         return create2Wallet(params, keccak256(abi.encodePacked(counter++)));
     }
 
     function create2Wallet(
-        CreateParams calldata params,
+        CreateWalletParams calldata params,
         bytes32 salt
     ) public returns (address) {
         SmartWalletV1 wallet = SmartWalletV1(
             Clones.cloneDeterministic(implementation, salt)
         );
-        wallet.initialize(
-            msg.sender,
-            params.linkToken,
-            params.clRegistrar,
-            params.clRegistry,
-            params.uniswapV3Router,
-            params.wethToken,
-            params.wethToLinkSwapPath,
-            params.initAllowlist
-        );
+        wallet.initialize(params);
         return address(wallet);
     }
 

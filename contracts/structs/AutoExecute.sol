@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 struct AutoExecute {
-    uint256 id;
+    bytes32 id;
     address creator;
     address callback;
     bytes executeData;
