@@ -4,7 +4,7 @@
 
 pragma solidity ^0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {AutoExecute} from "../structs/AutoExecute.sol";
+import "../interfaces/ISmartWallet.sol";
 
 library EnumerableMap {
     using EnumerableSet for EnumerableSet.UintSet;
@@ -22,7 +22,7 @@ library EnumerableMap {
     struct UintToAutoExecuteMap {
         // Storage of keys
         EnumerableSet.UintSet _keys;
-        mapping(uint256 key => AutoExecute) _values;
+        mapping(uint256 key => ISmartWallet.AutoExecute) _values;
     }
 
     /**
@@ -35,7 +35,7 @@ library EnumerableMap {
     function set(
         UintToAutoExecuteMap storage map,
         uint256 key,
-        AutoExecute memory value
+        ISmartWallet.AutoExecute memory value
     ) internal returns (bool) {
         map._values[key] = value;
         return map._keys.add(key);
@@ -86,7 +86,7 @@ library EnumerableMap {
     function at(
         UintToAutoExecuteMap storage map,
         uint256 index
-    ) internal view returns (uint256, AutoExecute memory) {
+    ) internal view returns (uint256, ISmartWallet.AutoExecute memory) {
         uint256 key = map._keys.at(index);
         return (key, map._values[key]);
     }
@@ -98,8 +98,8 @@ library EnumerableMap {
     function tryGet(
         UintToAutoExecuteMap storage map,
         uint256 key
-    ) internal view returns (bool, AutoExecute memory) {
-        AutoExecute memory value = map._values[key];
+    ) internal view returns (bool, ISmartWallet.AutoExecute memory) {
+        ISmartWallet.AutoExecute memory value = map._values[key];
         if (value.creator == address(0)) {
             return (contains(map, key), value);
         } else {
@@ -117,8 +117,8 @@ library EnumerableMap {
     function get(
         UintToAutoExecuteMap storage map,
         uint256 key
-    ) internal view returns (AutoExecute memory) {
-        AutoExecute memory value = map._values[key];
+    ) internal view returns (ISmartWallet.AutoExecute memory) {
+        ISmartWallet.AutoExecute memory value = map._values[key];
         if (value.creator == address(0) && !contains(map, key)) {
             revert EnumerableMapNonexistentKey(key);
         }

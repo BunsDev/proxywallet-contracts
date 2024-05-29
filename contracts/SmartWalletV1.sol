@@ -8,20 +8,22 @@ import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable
 import "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-// import "@chainlink/contracts/src/v0.8/.sol";
 import "./libraries/EnumerableMap.sol";
 import "./libraries/UniswapV3Actions.sol";
 import "./interfaces/IWeth.sol";
 import "./interfaces/IAutoExecuteCallback.sol";
 import "./interfaces/IAutomationRegistrarInterface.sol";
 import "./interfaces/IAutomationRegistryInterface.sol";
-import "./structs/CreateWalletParams.sol";
+import "./interfaces/ISmartWallet.sol";
+import "./interfaces/ISmartWalletFactory.sol";
+
 import "hardhat/console.sol";
 
 contract SmartWalletV1 is
     OwnableUpgradeable,
     EIP712Upgradeable,
-    NoncesUpgradeable
+    NoncesUpgradeable,
+    ISmartWallet
 {
     using EnumerableMap for EnumerableMap.UintToAutoExecuteMap;
     using Address for address;
@@ -36,19 +38,20 @@ contract SmartWalletV1 is
 
     mapping(address => bool) public allowlist;
     mapping(address => mapping(bytes4 => bool)) public blacklistedFunctions;
-    EnumerableMap.UintToAutoExecuteMap autoExecutesMap;
-    address public allowListOperator;
 
-    address public linkToken;
-    address public clRegistrar;
-    address public clRegistry;
+    address public allowListOperator;
+    uint256 public autoExecuteCounter;
     uint256 public upkeepId;
 
-    address public uniswapV3Router;
-    address public wethToken;
-    bytes public wethToLinkSwapPath;
+    address private linkToken;
+    address private clRegistrar;
+    address private clRegistry;
 
-    uint256 public autoExecuteCounter;
+    EnumerableMap.UintToAutoExecuteMap private autoExecutesMap;
+
+    address private uniswapV3Router;
+    address private wethToken;
+    bytes private wethToLinkSwapPath;
 
     modifier onlyAllowlist() {
         require(allowlist[msg.sender], "SW: not in allowlist");
@@ -67,7 +70,7 @@ contract SmartWalletV1 is
     receive() external payable {}
 
     function initialize(
-        CreateWalletParams calldata createParams
+        ISmartWalletFactory.CreateWalletParams calldata createParams
     ) external initializer {
         __Ownable_init(createParams.owner);
         __EIP712_init("SmartWalletV1", "1");
@@ -80,13 +83,45 @@ contract SmartWalletV1 is
         linkToken = createParams.linkToken;
         clRegistrar = createParams.clRegistrar;
         clRegistry = createParams.clRegistry;
+    }
 
-        for (uint i; i < createParams.initAllowlist.length; i++) {
-            allowlist[createParams.initAllowlist[i]] = true;
+    function execute(
+        address to,
+        uint256 callValue,
+        bytes calldata data
+    ) public onlyOwner returns (bytes memory returnData) {
+        require(to != address(this), "SW: to cannot be this");
+        returnData = _execute(to, callValue, data);
+    }
+
+    function executeBatch(
+        address[] calldata tos,
+        uint256[] calldata callValues,
+        bytes[] calldata datas
+    ) public onlyOwner returns (bytes[] memory returnDatas) {
+        require(
+            tos.length == callValues.length && tos.length == datas.length,
+            "SW: mismatch arrays"
+        );
+        returnDatas = new bytes[](tos.length);
+        for (uint i = 0; i < tos.length; i++) {
+            returnDatas[i] = _execute(tos[i], callValues[i], datas[i]);
         }
     }
 
-    function blacklist(
+    function blacklist(address to, bytes4 funcSelector) external onlyAllowlist {
+        require(funcSelector != bytes4(0), "SW: invalid selector");
+        blacklistedFunctions[to][funcSelector] = true;
+    }
+
+    function removeFromBlacklist(
+        address to,
+        bytes4 funcSelector
+    ) external onlyAllowlist {
+        blacklistedFunctions[to][funcSelector] = false;
+    }
+
+    function blacklistBatch(
         address[] calldata tos,
         bytes4[] calldata funcSelectors
     ) external onlyAllowlist {
@@ -97,7 +132,7 @@ contract SmartWalletV1 is
         }
     }
 
-    function removeFromBlacklist(
+    function removeFromBlacklistBatch(
         address[] calldata tos,
         bytes4[] calldata funcSelectors
     ) external onlyAllowlist {
@@ -171,29 +206,13 @@ contract SmartWalletV1 is
         allowlist[addr] = false;
     }
 
-    function execute(
-        address to,
-        uint256 callValue,
-        bytes calldata data
-    ) public onlyOwner returns (bytes memory returnData) {
-        require(to != address(this), "SW: to cannot be this");
-        returnData = _execute(to, callValue, data);
-    }
+    function performUpkeep(bytes calldata performData) external {
+        uint256 id = abi.decode(performData, (uint256));
+        AutoExecute memory data = autoExecutesMap.get(id);
+        require(block.timestamp > data.executeAfter, "SW: to early to execute");
 
-    function executeBatch(
-        address[] calldata tos,
-        uint256[] calldata callValues,
-        bytes[] calldata datas
-    ) public onlyOwner returns (bytes[] memory returnDatas) {
-        require(
-            tos.length == callValues.length && tos.length == datas.length,
-            "SW: mismatch arrays"
-        );
-        returnDatas = new bytes[](tos.length);
-        for (uint i = 0; i < tos.length; i++) {
-            require(tos[i] != address(this), "SW: to cannot be this");
-            returnDatas[i] = _execute(tos[i], callValues[i], datas[i]);
-        }
+        _executeUpkeep(data);
+        autoExecutesMap.remove(id);
     }
 
     function checkUpkeep(
@@ -210,23 +229,17 @@ contract SmartWalletV1 is
         }
     }
 
-    function performUpkeep(bytes calldata performData) external {
-        uint256 id = abi.decode(performData, (uint256));
-        AutoExecute memory data = autoExecutesMap.get(id);
-        require(block.timestamp > data.executeAfter, "SW: to early to execute");
-
-        _executeUpkeep(data);
-        autoExecutesMap.remove(id);
-    }
-
     function _execute(
         address to,
         uint256 callValue,
         bytes calldata data
-    ) private returns (bytes memory) {
+    ) private returns (bytes memory returnData) {
+        require(to != address(this), "SW: to cannot be this");
+
         _requireNotBlaclisted(to, data);
+
         if (data.length > 0) {
-            return to.functionCallWithValue(data, callValue);
+            returnData = to.functionCallWithValue(data, callValue);
         } else {
             Address.sendValue(payable(to), callValue);
         }
