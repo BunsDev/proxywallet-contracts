@@ -14,6 +14,7 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
     struct NftRentInfo {
         address renter;
         uint256 rentEndsAt;
+        bytes32 listId;
         bool closed;
     }
 
@@ -85,13 +86,14 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
         _rent(id, smartWallet);
     }
 
-    function returnRented(bytes32 id) external {
+    function returnRented(bytes32 rentId) external {
         require(
             ISmartWalletFactory(smartWalletFactory).validateWallet(msg.sender),
             "NR: not a smart wallet"
         );
-        NftListInfo memory listInfo = listInfos[id];
-        NftRentInfo storage rentInfo = rentInfos[id];
+        NftRentInfo storage rentInfo = rentInfos[rentId];
+        require(!rentInfo.closed, "NR: already closed");
+        NftListInfo memory listInfo = listInfos[rentInfo.listId];
 
         IERC721(listInfo.tokenContract).safeTransferFrom(
             msg.sender,
@@ -101,7 +103,7 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
 
         rentInfo.closed = true;
 
-        ISmartWallet(msg.sender).removeAutoExecute(id);
+        ISmartWallet(msg.sender).removeAutoExecute(rentId);
         _resetSmartWallet(listInfo, msg.sender);
     }
 
@@ -126,31 +128,38 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
         );
 
         uint256 rentEndsAt = block.timestamp + listInfo.rentDuration;
-        _configureSmartWallet(listInfo, id, rentEndsAt, smartWallet);
+        bytes32 rentId = _configureSmartWallet(
+            listInfo,
+            id,
+            rentEndsAt,
+            smartWallet
+        );
 
         listInfos[id] = listInfo;
-        rentInfos[id] = NftRentInfo({
+        rentInfos[rentId] = NftRentInfo({
             renter: smartWallet,
             closed: false,
-            rentEndsAt: rentEndsAt
+            rentEndsAt: rentEndsAt,
+            listId: id
         });
     }
 
-    function autoExecuteCallback(bytes32 id) external {
-        NftRentInfo storage rentInfo = rentInfos[id];
+    function autoExecuteCallback(bytes32 rentId) external {
+        NftRentInfo storage rentInfo = rentInfos[rentId];
+        require(!rentInfo.closed, "NR: already closed");
         require(msg.sender == rentInfo.renter, "NR: invalid sender");
         require(block.timestamp > rentInfo.rentEndsAt, "NR: is not expired");
         rentInfo.closed = true;
 
-        _resetSmartWallet(listInfos[id], rentInfo.renter);
+        _resetSmartWallet(listInfos[rentInfo.listId], rentInfo.renter);
     }
 
     function _configureSmartWallet(
         NftListInfo memory listInfo,
-        bytes32 rentId,
+        bytes32 listId,
         uint256 rentEndsAt,
         address smartWallet
-    ) private {
+    ) private returns (bytes32) {
         ISmartWallet _smartWallet = ISmartWallet(smartWallet);
 
         for (uint i; i < blaclistedFunctionsERC721.length; i++) {
@@ -158,19 +167,20 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
             _smartWallet.blacklist(listInfo.tokenContract, selector);
         }
 
-        _smartWallet.addToAutoExecute(
-            rentId,
-            address(this),
-            abi.encodeWithSelector(
-                bytes4(0x42842e0e), // safeTransferFrom(address,address,uint256)
-                smartWallet, // from
-                listInfo.owner, // to
-                listInfo.tokenId // tokenId
-            ),
-            listInfo.tokenContract,
-            0,
-            rentEndsAt
-        );
+        return
+            _smartWallet.addToAutoExecute(
+                listId,
+                address(this),
+                abi.encodeWithSelector(
+                    bytes4(0x42842e0e), // safeTransferFrom(address,address,uint256)
+                    smartWallet, // from
+                    listInfo.owner, // to
+                    listInfo.tokenId // tokenId
+                ),
+                listInfo.tokenContract,
+                0,
+                rentEndsAt
+            );
     }
 
     function _resetSmartWallet(

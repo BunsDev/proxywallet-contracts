@@ -35,7 +35,7 @@ interface ISmartWallet is IAutomationCompatible {
         address executeTo,
         uint256 executeValue,
         uint256 executeAfter
-    ) external;
+    ) external returns (bytes32);
 
     function removeAutoExecute(bytes32 id) external;
 

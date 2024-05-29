@@ -144,17 +144,19 @@ contract SmartWalletV1 is
     }
 
     function addToAutoExecute(
-        bytes32 id,
+        bytes32 externalId,
         address callback,
         bytes calldata executeData,
         address executeTo,
         uint256 executeValue,
         uint256 executeAfter
-    ) external {
+    ) external returns (bytes32 id) {
         require(
             msg.sender == owner() || allowlist[msg.sender],
             "SW: invalid sender"
         );
+
+        id = keccak256(abi.encodePacked(msg.sender, externalId));
 
         require(executeAfter > block.timestamp, "SW: invalid execute time");
         require(extenralIdsToExecutesIds[id] == 0, "SW: id already exist");
