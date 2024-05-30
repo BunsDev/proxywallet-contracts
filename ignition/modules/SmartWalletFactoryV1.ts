@@ -6,7 +6,12 @@ const NAME = 'SmartWalletFactoryV1';
 
 const SmartWalletFactoryV1Module = buildModule(NAME, (m) => {
   const { impl } = m.useModule(SmartWalletV1Module);
-  const factory = m.contract(NAME, artifacts.readArtifactSync(NAME), [impl]);
+  const commonDeployParams = m.getParameter('commonDeployParams');
+
+  const factory = m.contract(NAME, artifacts.readArtifactSync(NAME), [
+    commonDeployParams,
+    impl,
+  ]);
 
   return { factory };
 });

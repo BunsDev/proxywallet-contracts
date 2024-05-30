@@ -1,0 +1,12 @@
+{
+  "SmartWalletFactoryV1": {
+    "commonDeployParams": {
+      "linkToken": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+      "clRegistrar": "0x6B0B234fB2f380309D47A7E9391E29E9a179395a",
+      "clRegistry": "0x6593c7De001fC8542bB1703532EE1E5aA0D458fD",
+      "uniswapV3Router": "0xe592427a0aece92de3edee1f18e0157c05861564",
+      "wethToken": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "wethToLinkSwapPath": "0x514910771af9ca656af840dff83e8264ecf986ca000bb8c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    }
+  }
+}

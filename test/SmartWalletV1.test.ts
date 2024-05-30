@@ -41,6 +41,8 @@ const wethToLinkSwapPath = encodePacked(
   [linkTokenAddress, 3000, wethTokenAddress],
 );
 
+console.log({ wethToLinkSwapPath });
+
 type DefaultFixtureReturn = Awaited<ReturnType<typeof deployFixture>>;
 
 const createWalletTest = async (
@@ -49,21 +51,13 @@ const createWalletTest = async (
 ) => {
   const realSalt = keccak256(encodePacked(['string'], [salt]));
   const walletAddress = await fixture.factory.read.predictCreate2Wallet([
+    fixture.owner.account.address,
     realSalt,
   ]);
 
   await fixture.factory.write.create2Wallet([
-    {
-      owner: fixture.owner.account.address,
-      allowlistOperator: fixture.owner.account.address,
-      linkToken: linkTokenAddress,
-      clRegistrar: clRegistrarAddress,
-      clRegistry: clRegistryAddress,
-      uniswapV3Router: uniswapV3RouterAddress,
-      wethToken: wethTokenAddress,
-      wethToLinkSwapPath,
-      initAllowlist: [],
-    },
+    fixture.owner.account.address,
+    fixture.owner.account.address,
     realSalt,
   ]);
 
@@ -174,6 +168,15 @@ const addToAutoExecuteTest = async (
     return;
   }
 
+  const uniqueId = await wallet.simulate.addToAutoExecute([
+    id,
+    callback,
+    calldata,
+    to,
+    value,
+    BigInt(after!),
+  ]);
+
   await wallet.write.addToAutoExecute([
     id,
     callback,
@@ -194,13 +197,13 @@ const blacklistTest = async (
   common?: CommonParams,
 ) => {
   if (common?.revertedWith !== undefined) {
-    await expect(wallet.write.blacklist([[to], [selector]])).rejectedWith(
+    await expect(wallet.write.blacklist([to, selector])).rejectedWith(
       common.revertedWith,
     );
     return;
   }
 
-  await wallet.write.blacklist([[to], [selector]]);
+  await wallet.write.blacklist([to, selector]);
 
   expect(await wallet.read.blacklistedFunctions([to, selector])).eq(true);
 };
@@ -226,7 +229,20 @@ async function deployFixture() {
     WalletModule,
     {},
   );
-  const { factory } = await ignition.deploy(FactoryModule, {});
+  const { factory } = await ignition.deploy(FactoryModule, {
+    parameters: {
+      SmartWalletFactoryV1: {
+        commonDeployParams: {
+          linkToken: linkTokenAddress,
+          clRegistrar: clRegistrarAddress,
+          clRegistry: clRegistryAddress,
+          uniswapV3Router: uniswapV3RouterAddress,
+          wethToken: wethTokenAddress,
+          wethToLinkSwapPath,
+        },
+      },
+    },
+  });
 
   const publicClient = await viem.getPublicClient();
 
@@ -376,7 +392,7 @@ describe('SmartWalletV1', function () {
       await time.increase(3700);
 
       await performUpkeep(
-        { wallet, data: encodeAbiParameters([{ type: 'uint256' }], [0n]) },
+        { wallet, data: encodeAbiParameters([{ type: 'uint256' }], [1n]) },
         fixture,
       );
     });
