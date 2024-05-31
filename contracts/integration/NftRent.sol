@@ -83,7 +83,7 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
     }
 
     function rent(bytes32 id) external payable returns (address smartWallet) {
-        bytes32 walletSalt = keccak256(abi.encodePacked(msg.sender));
+        bytes32 walletSalt = keccak256(abi.encodePacked(msg.sender, id));
         smartWallet = ISmartWalletFactory(smartWalletFactory).create2Wallet(
             msg.sender,
             address(this),

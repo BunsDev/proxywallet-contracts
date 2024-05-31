@@ -8,6 +8,9 @@ import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable
 import "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
+
 import "./libraries/EnumerableMap.sol";
 import "./libraries/UniswapV3Actions.sol";
 import "./interfaces/IWeth.sol";
@@ -22,6 +25,8 @@ import "hardhat/console.sol";
 contract SmartWalletV1 is
     OwnableUpgradeable,
     EIP712Upgradeable,
+    ERC721HolderUpgradeable,
+    ERC1155HolderUpgradeable,
     NoncesUpgradeable,
     ISmartWallet
 {
