@@ -6,6 +6,7 @@
       "uniswapV3Router": "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E",
       "wethToken": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
       "linkToken": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
+      "linkFeePerExecution": "7000000000000000000",
       "wethToLinkSwapPath": "0x779877a7b0d9e8603169ddbd7836e478b4624789000bb8fff9976782d46cc05630d1f6ebab18b2324d6b14"
     }
   },

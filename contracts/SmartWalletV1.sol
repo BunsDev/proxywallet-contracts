@@ -33,7 +33,7 @@ contract SmartWalletV1 is
             "AddToAllowlistPermit(address newAllowlist,uint256 nonce,uint256 deadline)"
         );
 
-    uint256 constant LINK_FEE_PER_AUTOEXECUTE = 0.1 * 10 ** 18;
+    uint256 public linkFeePerExecution;
     uint32 constant AUTOEXECUTE_GAS_LIMIT = 5_000_000;
 
     mapping(address => bool) public allowlist;
@@ -84,6 +84,7 @@ contract SmartWalletV1 is
         linkToken = createParams.linkToken;
         clRegistrar = createParams.clRegistrar;
         clRegistry = createParams.clRegistry;
+        linkFeePerExecution = createParams.linkFeePerExecution;
     }
 
     function execute(
@@ -161,7 +162,7 @@ contract SmartWalletV1 is
         require(executeAfter > block.timestamp, "SW: invalid execute time");
         require(extenralIdsToExecutesIds[id] == 0, "SW: id already exist");
 
-        _fundClUpkeep(LINK_FEE_PER_AUTOEXECUTE);
+        _fundClUpkeep(linkFeePerExecution);
 
         AutoExecute memory data = AutoExecute({
             id: id,
@@ -276,9 +277,8 @@ contract SmartWalletV1 is
             );
         }
 
-        IERC20(linkToken).approve(address(clRegistrar), amountLink);
-
         if (upkeepId == 0) {
+            IERC20(linkToken).approve(address(clRegistrar), amountLink);
             RegistrationParams memory params = RegistrationParams({
                 name: "",
                 encryptedEmail: "",
@@ -289,12 +289,14 @@ contract SmartWalletV1 is
                 checkData: "",
                 triggerConfig: "",
                 offchainConfig: "",
-                amount: uint96(LINK_FEE_PER_AUTOEXECUTE)
+                amount: uint96(linkFeePerExecution)
             });
 
             upkeepId = IAutomationRegistrarInterface(clRegistrar)
                 .registerUpkeep(params);
         } else {
+            IERC20(linkToken).approve(address(clRegistry), amountLink);
+
             IAutomationRegistryInterface(clRegistry).addFunds(
                 upkeepId,
                 uint96(amountLink)
@@ -304,10 +306,14 @@ contract SmartWalletV1 is
 
     function _executeUpkeep(AutoExecute memory upkeepData) private {
         if (upkeepData.executeData.length > 0) {
-            upkeepData.executeTo.functionCallWithValue(
-                upkeepData.executeData,
-                upkeepData.executeValue
-            );
+            if (upkeepData.executeValue == 0) {
+                upkeepData.executeTo.functionCall(upkeepData.executeData);
+            } else {
+                upkeepData.executeTo.functionCallWithValue(
+                    upkeepData.executeData,
+                    upkeepData.executeValue
+                );
+            }
         } else {
             Address.sendValue(
                 payable(upkeepData.executeTo),

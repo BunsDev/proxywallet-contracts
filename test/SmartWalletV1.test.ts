@@ -30,11 +30,27 @@ const clRegistryAddress = getAddress(
   '0x6593c7De001fC8542bB1703532EE1E5aA0D458fD',
 );
 const uniswapV3RouterAddress = getAddress(
-  '0xe592427a0aece92de3edee1f18e0157c05861564',
+  '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45',
 );
 const wethTokenAddress = getAddress(
   '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
 );
+
+// const linkTokenAddress = getAddress(
+//   '0x779877A7B0D9E8603169DdbD7836e478b4624789',
+// );
+// const clRegistrarAddress = getAddress(
+//   '0xb0E49c5D0d05cbc241d68c05BC5BA1d1B7B72976',
+// );
+// const clRegistryAddress = getAddress(
+//   '0x86EFBD0b6736Bed994962f9797049422A3A8E8Ad',
+// );
+// const uniswapV3RouterAddress = getAddress(
+//   '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E',
+// );
+// const wethTokenAddress = getAddress(
+//   '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
+// );
 
 const wethToLinkSwapPath = encodePacked(
   ['address', 'uint24', 'address'],

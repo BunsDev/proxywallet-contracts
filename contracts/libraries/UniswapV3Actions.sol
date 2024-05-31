@@ -13,7 +13,6 @@ library UniswapV3Actions {
             .ExactInputParams({
                 path: _path,
                 recipient: _recipient,
-                deadline: block.timestamp,
                 amountIn: _amount,
                 amountOutMinimum: 0
             });
@@ -31,7 +30,6 @@ library UniswapV3Actions {
             .ExactOutputParams({
                 path: _path,
                 recipient: _recipient,
-                deadline: block.timestamp,
                 amountOut: _amountOut,
                 amountInMaximum: _amountInMaximum
             });

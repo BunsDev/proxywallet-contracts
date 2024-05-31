@@ -19,6 +19,7 @@ contract SmartWalletFactoryV1 is ISmartWalletFactory {
         address clRegistry;
         address uniswapV3Router;
         address wethToken;
+        uint256 linkFeePerExecution;
         bytes wethToLinkSwapPath;
     }
 
@@ -60,7 +61,8 @@ contract SmartWalletFactoryV1 is ISmartWalletFactory {
                 clRegistry: commonDeployParams.clRegistry,
                 uniswapV3Router: commonDeployParams.uniswapV3Router,
                 wethToken: commonDeployParams.wethToken,
-                wethToLinkSwapPath: commonDeployParams.wethToLinkSwapPath
+                wethToLinkSwapPath: commonDeployParams.wethToLinkSwapPath,
+                linkFeePerExecution: commonDeployParams.linkFeePerExecution
             })
         );
 

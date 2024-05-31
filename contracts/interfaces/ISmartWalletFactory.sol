@@ -10,6 +10,7 @@ interface ISmartWalletFactory {
         address clRegistry;
         address uniswapV3Router;
         address wethToken;
+        uint256 linkFeePerExecution;
         bytes wethToLinkSwapPath;
     }
 
