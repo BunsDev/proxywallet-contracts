@@ -8,5 +8,10 @@
       "linkToken": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
       "wethToLinkSwapPath": "0x779877a7b0d9e8603169ddbd7836e478b4624789000bb8fff9976782d46cc05630d1f6ebab18b2324d6b14"
     }
+  },
+  "TestERC721": {
+    "testERC721Name": "NftRent TestToken",
+    "testERC721Symbol": "NRTT",
+    "testERC721BaseUri": ""
   }
 }
