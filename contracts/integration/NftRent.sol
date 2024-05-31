@@ -29,7 +29,7 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
 
     address immutable smartWalletFactory;
 
-    bytes4[5] public blaclistedFunctionsERC721 = [
+    bytes4[5] public blacklistedFunctionsERC721 = [
         bytes4(0xa22cb465), // setApprovalForAll
         bytes4(0x095ea7b3), // approve
         bytes4(0x23b872dd), // transferFrom
@@ -121,6 +121,9 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
 
         Address.sendValue(payable(listInfo.owner), listInfo.ethFee);
 
+        // send the rest of eth to smart wallet
+        Address.sendValue(payable(smartWallet), msg.value - listInfo.ethFee);
+
         IERC721(listInfo.tokenContract).safeTransferFrom(
             address(this),
             smartWallet,
@@ -162,8 +165,8 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
     ) private returns (bytes32) {
         ISmartWallet _smartWallet = ISmartWallet(smartWallet);
 
-        for (uint i; i < blaclistedFunctionsERC721.length; i++) {
-            bytes4 selector = blaclistedFunctionsERC721[i];
+        for (uint i; i < blacklistedFunctionsERC721.length; i++) {
+            bytes4 selector = blacklistedFunctionsERC721[i];
             _smartWallet.blacklist(listInfo.tokenContract, selector);
         }
 
@@ -189,8 +192,8 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
     ) private {
         ISmartWallet _smartWallet = ISmartWallet(smartWallet);
 
-        for (uint i; i < blaclistedFunctionsERC721.length; i++) {
-            bytes4 selector = blaclistedFunctionsERC721[i];
+        for (uint i; i < blacklistedFunctionsERC721.length; i++) {
+            bytes4 selector = blacklistedFunctionsERC721[i];
             _smartWallet.removeFromBlacklist(listInfo.tokenContract, selector);
         }
         _smartWallet.removeFromAllowlist(address(this));
