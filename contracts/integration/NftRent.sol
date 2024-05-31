@@ -27,6 +27,11 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
         bool fulfilled;
     }
 
+    event List(bytes32 indexed listId);
+    event Rent(bytes32 indexed listId, bytes32 indexed rentId);
+    event RentReturn(bytes32 indexed rentId);
+    event RentReturnForced(bytes32 indexed rentId);
+
     address immutable smartWalletFactory;
 
     bytes4[5] public blacklistedFunctionsERC721 = [
@@ -69,6 +74,8 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
             tokenContract: tokenContract,
             fulfilled: false
         });
+
+        emit List(id);
     }
 
     function rentExternal(bytes32 id) external payable {
@@ -105,6 +112,8 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
 
         ISmartWallet(msg.sender).removeAutoExecute(rentId);
         _resetSmartWallet(listInfo, msg.sender);
+
+        emit RentReturn(rentId);
     }
 
     function _rent(bytes32 id, address smartWallet) internal {
@@ -145,6 +154,8 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
             rentEndsAt: rentEndsAt,
             listId: id
         });
+
+        emit Rent(id, rentId);
     }
 
     function autoExecuteCallback(bytes32 rentId) external {
@@ -155,6 +166,8 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
         rentInfo.closed = true;
 
         _resetSmartWallet(listInfos[rentInfo.listId], rentInfo.renter);
+
+        emit RentReturnForced(rentId);
     }
 
     function _configureSmartWallet(

@@ -253,7 +253,11 @@ contract SmartWalletV1 is
         _requireNotBlaclisted(to, data);
 
         if (data.length > 0) {
-            returnData = to.functionCallWithValue(data, callValue);
+            if (callValue == 0) {
+                returnData = to.functionCall(data);
+            } else {
+                returnData = to.functionCallWithValue(data, callValue);
+            }
         } else {
             Address.sendValue(payable(to), callValue);
         }
