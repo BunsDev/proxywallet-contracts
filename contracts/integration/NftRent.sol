@@ -159,6 +159,10 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
     }
 
     function autoExecuteCallback(bytes32 rentId) external {
+        require(
+            ISmartWalletFactory(smartWalletFactory).validateWallet(msg.sender),
+            "NR: sender not a smart wallet"
+        );
         NftRentInfo storage rentInfo = rentInfos[rentId];
         require(!rentInfo.closed, "NR: already closed");
         require(msg.sender == rentInfo.renter, "NR: invalid sender");
