@@ -14,6 +14,8 @@ interface ISmartWallet is IAutomationCompatible {
         uint256 executeAfter;
     }
 
+    function allowListOperator() external returns (address);
+
     function blacklist(address to, bytes4 funcSelector) external;
 
     function removeFromBlacklist(address to, bytes4 funcSelector) external;
@@ -22,6 +24,8 @@ interface ISmartWallet is IAutomationCompatible {
         address[] calldata tos,
         bytes4[] calldata funcSelectors
     ) external;
+
+    function executeRevert(bytes32 id, bool executeCallback) external;
 
     function removeFromBlacklistBatch(
         address[] calldata tos,

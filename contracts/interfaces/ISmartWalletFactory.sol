@@ -6,6 +6,8 @@ interface ISmartWalletFactory {
         address owner;
         address allowlistOperator;
         address linkToken;
+        address linkTokenNative;
+        address linkTokenPegSwap;
         address clRegistrar;
         address clRegistry;
         address uniswapV3Router;

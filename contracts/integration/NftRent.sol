@@ -101,16 +101,11 @@ contract NftRent is ERC721Holder, IAutoExecuteCallback {
         NftRentInfo storage rentInfo = rentInfos[rentId];
         require(!rentInfo.closed, "NR: already closed");
         NftListInfo memory listInfo = listInfos[rentInfo.listId];
-
-        IERC721(listInfo.tokenContract).safeTransferFrom(
-            msg.sender,
-            listInfo.owner,
-            listInfo.tokenId
-        );
-
         rentInfo.closed = true;
 
+        ISmartWallet(msg.sender).executeRevert(rentId, false);
         ISmartWallet(msg.sender).removeAutoExecute(rentId);
+
         _resetSmartWallet(listInfo, msg.sender);
 
         emit RentReturn(rentId);

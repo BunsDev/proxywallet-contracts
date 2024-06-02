@@ -28,6 +28,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     main: getNetworkConfig('main'),
+    polygon: getNetworkConfig('polygon'),
     sepolia: getNetworkConfig('sepolia'),
     ...(env.SOLIDITY_COVERAGE
       ? {}

@@ -18,6 +18,7 @@ import "./interfaces/IAutoExecuteCallback.sol";
 import "./interfaces/IAutomationRegistrarInterface.sol";
 import "./interfaces/IAutomationRegistryInterface.sol";
 import "./interfaces/ISmartWallet.sol";
+import "./interfaces/ILinkPegSwap.sol";
 import "./interfaces/ISmartWalletFactory.sol";
 
 import "hardhat/console.sol";
@@ -48,6 +49,9 @@ contract SmartWalletV1 is
     address public allowListOperator;
     uint256 public autoExecuteCounter;
     uint256 public upkeepId;
+
+    address private linkTokenPegSwap;
+    address private linkTokenNative;
 
     address private linkToken;
     address private clRegistrar;
@@ -86,10 +90,24 @@ contract SmartWalletV1 is
         wethToken = createParams.wethToken;
         wethToLinkSwapPath = createParams.wethToLinkSwapPath;
 
+        linkTokenPegSwap = createParams.linkTokenPegSwap;
+        linkTokenNative = createParams.linkTokenNative;
+
         linkToken = createParams.linkToken;
         clRegistrar = createParams.clRegistrar;
         clRegistry = createParams.clRegistry;
         linkFeePerExecution = createParams.linkFeePerExecution;
+    }
+
+    function executeRevert(
+        bytes32 id,
+        bool executeCallback
+    ) external onlyAllowlist {
+        uint256 internalId = extenralIdsToExecutesIds[id];
+        require(internalId > 0, "SW: not exist");
+        AutoExecute memory data = autoExecutesMap.get(internalId);
+        require(data.creator == msg.sender, "SW: invalid sender");
+        _executeUpkeep(data, executeCallback);
     }
 
     function execute(
@@ -231,7 +249,7 @@ contract SmartWalletV1 is
         AutoExecute memory data = autoExecutesMap.get(id);
         require(block.timestamp > data.executeAfter, "SW: to early to execute");
 
-        _executeUpkeep(data);
+        _executeUpkeep(data, true);
         autoExecutesMap.remove(id);
     }
 
@@ -256,7 +274,7 @@ contract SmartWalletV1 is
     ) private returns (bytes memory returnData) {
         require(to != address(this), "SW: to cannot be this");
 
-        _requireNotBlaclisted(to, data);
+        _requireNotBlacklisted(to, data);
 
         if (data.length > 0) {
             if (callValue == 0) {
@@ -270,20 +288,30 @@ contract SmartWalletV1 is
     }
 
     function _fundClUpkeep(uint256 amountLink) private {
-        uint256 linkBalance = IERC20(linkToken).balanceOf(address(this));
+        uint256 linkBalance = IERC20(linkTokenNative).balanceOf(address(this));
 
         if (linkBalance < amountLink) {
+            uint256 linkToGet = amountLink - linkBalance;
             UniswapV3Actions.swapExactOutput(
                 uniswapV3Router,
                 wethToLinkSwapPath,
                 address(this),
-                amountLink,
-                address(this).balance // FIXME
+                linkToGet,
+                address(this).balance
             );
+
+            if (linkTokenPegSwap != address(0)) {
+                IERC20(linkToken).approve(address(linkTokenPegSwap), linkToGet);
+                ILinkPegSwap(linkTokenPegSwap).swap(
+                    linkToGet,
+                    linkToken,
+                    linkTokenNative
+                );
+            }
         }
 
         if (upkeepId == 0) {
-            IERC20(linkToken).approve(address(clRegistrar), amountLink);
+            IERC20(linkTokenNative).approve(address(clRegistrar), amountLink);
             RegistrationParams memory params = RegistrationParams({
                 name: "",
                 encryptedEmail: "",
@@ -300,7 +328,7 @@ contract SmartWalletV1 is
             upkeepId = IAutomationRegistrarInterface(clRegistrar)
                 .registerUpkeep(params);
         } else {
-            IERC20(linkToken).approve(address(clRegistry), amountLink);
+            IERC20(linkTokenNative).approve(address(clRegistry), amountLink);
 
             IAutomationRegistryInterface(clRegistry).addFunds(
                 upkeepId,
@@ -309,7 +337,10 @@ contract SmartWalletV1 is
         }
     }
 
-    function _executeUpkeep(AutoExecute memory upkeepData) private {
+    function _executeUpkeep(
+        AutoExecute memory upkeepData,
+        bool executeCallback
+    ) private {
         if (upkeepData.executeData.length > 0) {
             if (upkeepData.executeValue == 0) {
                 upkeepData.executeTo.functionCall(upkeepData.executeData);
@@ -326,7 +357,7 @@ contract SmartWalletV1 is
             );
         }
 
-        if (upkeepData.callback != address(0)) {
+        if (upkeepData.callback != address(0) && executeCallback) {
             upkeepData.callback.functionCall(
                 abi.encodeCall(
                     IAutoExecuteCallback(upkeepData.callback)
@@ -337,7 +368,7 @@ contract SmartWalletV1 is
         }
     }
 
-    function _requireNotBlaclisted(
+    function _requireNotBlacklisted(
         address to,
         bytes calldata data
     ) private view {
@@ -346,6 +377,6 @@ contract SmartWalletV1 is
         }
 
         bytes4 selector = bytes4(data[:4]);
-        require(!blacklistedFunctions[to][selector], "CW: func is blaclisted");
+        require(!blacklistedFunctions[to][selector], "CW: func is blacklisted");
     }
 }

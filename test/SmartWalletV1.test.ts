@@ -250,8 +250,11 @@ async function deployFixture() {
       SmartWalletFactoryV1: {
         commonDeployParams: {
           linkToken: linkTokenAddress,
+          linkTokenNative: linkTokenAddress,
+          linkTokenPegSwap: zeroAddress,
           clRegistrar: clRegistrarAddress,
           clRegistry: clRegistryAddress,
+          linkFeePerExecution: '100000000000000000',
           uniswapV3Router: uniswapV3RouterAddress,
           wethToken: wethTokenAddress,
           wethToLinkSwapPath,
@@ -334,7 +337,7 @@ describe('SmartWalletV1', function () {
         },
         fixture,
         {
-          revertedWith: 'CW: func is blaclisted',
+          revertedWith: 'CW: func is blacklisted',
         },
       );
     });

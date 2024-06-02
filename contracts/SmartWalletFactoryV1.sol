@@ -15,6 +15,8 @@ contract SmartWalletFactoryV1 is ISmartWalletFactory {
 
     struct CommonDeployParams {
         address linkToken;
+        address linkTokenNative;
+        address linkTokenPegSwap;
         address clRegistrar;
         address clRegistry;
         address uniswapV3Router;
@@ -56,6 +58,8 @@ contract SmartWalletFactoryV1 is ISmartWalletFactory {
             CreateWalletParams({
                 owner: owner,
                 allowlistOperator: allowlistOperator,
+                linkTokenNative: commonDeployParams.linkTokenNative,
+                linkTokenPegSwap: commonDeployParams.linkTokenPegSwap,
                 linkToken: commonDeployParams.linkToken,
                 clRegistrar: commonDeployParams.clRegistrar,
                 clRegistry: commonDeployParams.clRegistry,
